@@ -1,0 +1,29 @@
+{
+  "databaseModule": "server.js",
+  "appModule": "server.js",
+  "endpoints": [
+    {
+      "path": "/api/listings"
+    },
+    {
+      "path": "/api/listings/1"
+    },
+    {
+      "method": "post",
+      "path": "/api/inquiries",
+      "status": 201,
+      "body": {
+        "listingId": 1,
+        "name": "Contract",
+        "phone": "+79990000000",
+        "message": "Contract inquiry"
+      }
+    },
+    {
+      "method": "post",
+      "path": "/api/inquiries",
+      "status": 400,
+      "body": {}
+    }
+  ]
+}

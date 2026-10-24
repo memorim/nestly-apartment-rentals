@@ -1,0 +1,63 @@
+[
+  {
+    "method": "get",
+    "path": "/api/listings",
+    "status": 200,
+    "body": [
+      {
+        "accent": "string",
+        "address": "string",
+        "area": "number",
+        "available": "number",
+        "district": "string",
+        "features": [
+          "string"
+        ],
+        "floor": "number",
+        "id": "number",
+        "price": "number",
+        "rooms": "number",
+        "style": "string",
+        "title": "string"
+      }
+    ]
+  },
+  {
+    "method": "get",
+    "path": "/api/listings/1",
+    "status": 200,
+    "body": {
+      "accent": "string",
+      "address": "string",
+      "area": "number",
+      "available": "number",
+      "district": "string",
+      "features": [
+        "string"
+      ],
+      "floor": "number",
+      "id": "number",
+      "price": "number",
+      "rooms": "number",
+      "style": "string",
+      "title": "string"
+    }
+  },
+  {
+    "method": "post",
+    "path": "/api/inquiries",
+    "status": 201,
+    "body": {
+      "id": "number",
+      "status": "string"
+    }
+  },
+  {
+    "method": "post",
+    "path": "/api/inquiries",
+    "status": 400,
+    "body": {
+      "message": "string"
+    }
+  }
+]
