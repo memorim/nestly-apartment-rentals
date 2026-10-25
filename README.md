@@ -1,56 +1,68 @@
-# Nestly — каталог аренды квартир
+# Nestly — Apartment Rentals
 
-Демонстрирует поиск квартиры и заявку на просмотр.
+Browse apartment listings and submit a viewing enquiry.
 
-**Проект:** Самостоятельная разработка.
 
-![CI](https://github.com/memorim/nestly-apartment-rentals/actions/workflows/ci.yml/badge.svg)
+![Desktop interface](docs/desktop.png)
 
-![Компьютерная версия](docs/desktop.png)
+<img src="docs/mobile.png" width="320" alt="Mobile interface">
 
-<img src="docs/mobile.png" width="320" alt="Мобильная версия">
+[Short interaction recording](docs/demo.gif)
 
-[Короткая демонстрация сценария](docs/demo.gif)
+## Implemented
 
-## Что работает
-- Каталог с фильтрами района, комнат и цены.
-- Избранное в localStorage и форма заявки на просмотр.
-- REST API и сохранение заявки в SQLite.
+- District/room/price filters and listing detail pages.
+- Persisted enquiries validated against available listings.
 
-## Стек
-JavaScript, Express, SQLite, Zod, HTML, CSS.
+## Stack and architecture
 
-## Запуск и проверка
-Node.js 24.18.0 и pnpm 11.7.0.
+JavaScript, Express, Zod, built-in Node SQLite and a static HTML/CSS interface.
+
+## Technical mechanisms and security
+
+- Queries bind user values rather than interpolate them into SQL. Listing availability is checked before saving an enquiry.
+- Default loopback binding and bounded JSON errors match the current local trust model.
+
+## Local setup
+
+Node.js 24.18.0 and pnpm 11.7.0 (see version files).
 
 ```bash
 npm install --global pnpm@11.7.0
 pnpm install --frozen-lockfile
-pnpm test
 pnpm start
 ```
 
-## Технические решения
-- Избранное хранится в браузере и не требует аккаунта.
-- Сервер проверяет наличие объекта перед сохранением заявки.
+Open `http://localhost:4600`. For live UI development use `pnpm dev` where available. The API binds to `127.0.0.1` by default.
 
-## Проверка интерфейса
+## Configuration
 
-Playwright проверяет компьютерную и мобильную версии, отсутствие горизонтального прокручивания и повтор загрузки после ответа API 503. Ошибка отправки формы сохраняет введённые данные.
+Configure process environment variables using [.env.example](.env.example). `pnpm start` uses the process environment; it does not implicitly load that file. To load a copied `.env` explicitly, run `node --env-file=.env server.js`.
+
+## Database and upgrades
+
+SQLite is stored at `data/nestly.db`. Initialization creates/migrates the schema; sample rows are included for local use. Back up the database before upgrades. Do not remove the database as a migration step.
+
+## Verification
 
 ```bash
-pnpm exec playwright install chromium
-pnpm test:e2e
+pnpm test
+pnpm test:contract
+pnpm test:upgrade
+pnpm audit --audit-level=high
 ```
 
-## Подробности
-[API, конфигурация и исходные инструкции](docs/TECHNICAL.md).
+Existing catalogue/enquiry tests, malformed-JSON regression, response contract and prior-schema upgrade checks.
 
-[Результаты проверки этой версии](docs/VERIFICATION.md).
+CI installs locked dependencies and runs the configured checks; documentation checks also validate local links/images. Python dependency auditing uses `pip-audit --disable-pip --no-deps --strict -r requirements-lock.txt`. A passing scanner only reports known advisories at the time of the run.
 
-[Пример запроса и ответа API](docs/API_EXAMPLE.md).
+## Limits and next steps
 
-## Проверки и обновления
-CI проверяет проект и ссылки на локальные материалы. Dependabot предлагает обновления зависимостей и Actions. [История изменений](CHANGELOG.md).
+- No verified user accounts, payment, live map, availability calendar or connected CRM.
+- Input lengths/query ranges and spam protection should be tightened before operating a public lead form.
 
-[Контракты API и обновление базы](docs/COMPATIBILITY.md): `pnpm test:contract && pnpm test:upgrade`.
+## Further documentation
+
+[Audit findings and follow-up](docs/AUDIT_2026_10.md) · [Technical reference](docs/TECHNICAL.md) · [Change history](CHANGELOG.md)
+
+[API request/response example](docs/API_EXAMPLE.md)
