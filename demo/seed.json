@@ -1,0 +1,88 @@
+{
+  "/api/listings": [
+    {
+      "id": 4,
+      "title": "Минималистичная студия",
+      "district": "Даниловский",
+      "address": "Хавская, 24",
+      "rooms": 1,
+      "area": 32,
+      "floor": 11,
+      "price": 89000,
+      "style": "blue",
+      "accent": "#718995",
+      "features": ["мебель", "коворкинг", "метро"],
+      "available": 1
+    },
+    {
+      "id": 2,
+      "title": "Лофт с панорамными окнами",
+      "district": "Пресня",
+      "address": "Мантулинская, 9",
+      "rooms": 1,
+      "area": 47,
+      "floor": 18,
+      "price": 128000,
+      "style": "brick",
+      "accent": "#b66e52",
+      "features": ["панорама", "консьерж", "спортзал"],
+      "available": 1
+    },
+    {
+      "id": 1,
+      "title": "Светлая квартира у парка",
+      "district": "Хамовники",
+      "address": "Усачёва, 15",
+      "rooms": 2,
+      "area": 54,
+      "floor": 7,
+      "price": 145000,
+      "style": "olive",
+      "accent": "#899477",
+      "features": ["балкон", "гардеробная", "парк"],
+      "available": 1
+    },
+    {
+      "id": 6,
+      "title": "Двухуровневые апартаменты",
+      "district": "Басманный",
+      "address": "Бауманская, 7",
+      "rooms": 2,
+      "area": 69,
+      "floor": 6,
+      "price": 157000,
+      "style": "dark",
+      "accent": "#666c65",
+      "features": ["антресоль", "кирпич", "охрана"],
+      "available": 1
+    },
+    {
+      "id": 3,
+      "title": "Тихая квартира в старом доме",
+      "district": "Чистые пруды",
+      "address": "Покровка, 31",
+      "rooms": 3,
+      "area": 78,
+      "floor": 4,
+      "price": 189000,
+      "style": "classic",
+      "accent": "#c5a56d",
+      "features": ["камин", "кабинет", "двор"],
+      "available": 1
+    },
+    {
+      "id": 5,
+      "title": "Семейная квартира с террасой",
+      "district": "Раменки",
+      "address": "Мосфильмовская, 70",
+      "rooms": 4,
+      "area": 112,
+      "floor": 22,
+      "price": 265000,
+      "style": "sand",
+      "accent": "#b59a7c",
+      "features": ["терраса", "паркинг", "детская"],
+      "available": 1
+    }
+  ]
+}
