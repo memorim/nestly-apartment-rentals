@@ -41,3 +41,9 @@ test('changing filters cancels the older catalog request',async({page})=>{
  await page.locator('#rooms').selectOption('0');await page.locator('#price').selectOption('100000');await page.locator('.search button').click();
  await cancelled;await held.abort();await expect(page.locator('.listing')).toHaveCount(1);await expect(page.locator('.listing h3')).toHaveText('Минималистичная студия');
 });
+
+test('map markers follow apartment filters and open the matching inquiry',async({page})=>{
+ await page.route('https://tile.openstreetmap.org/**',route=>route.abort());await page.goto('/');await expect(page.locator('.location-pin')).toHaveCount(6);
+ await page.locator('#price').selectOption('100000');await page.locator('.search button').click();await expect(page.locator('.location-pin')).toHaveCount(1);
+ const title=await page.locator('.listing h3').first().textContent();if(await page.locator('.map-panel>summary').isVisible())await page.locator('.map-panel>summary').click();await page.locator('.location-pin').focus();await page.locator('.location-pin').press('Enter');await expect(page.locator('dialog')).toBeVisible();await expect(page.locator('#dialog-title')).toHaveText(title);
+});
