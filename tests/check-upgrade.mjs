@@ -17,6 +17,7 @@ try{
  process.env.NODE_ENV='test';
  const older=await import(pathToFileURL(join(directory,baseline.module)).href),latest=await import(pathToFileURL(resolve(baseline.module)).href),file=join(directory,'previous.sqlite');
  previous=(older.createDb||older.createDatabase)(file);
+ previous.prepare("INSERT INTO inquiries(listing_id,name,phone,message,created_at) VALUES(1,?,?,?,?)").run('Upgrade marker','+79990000000','Keep this inquiry','2026-01-01T00:00:00Z');
  const before=snapshot(previous);assert.ok(before.some(t=>t.rows.length),'Previous release must contain records');previous.close();previous=null;
  current=(latest.createDb||latest.createDatabase)(file);
  for(const table of before){
