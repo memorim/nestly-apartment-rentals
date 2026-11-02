@@ -1,3 +1,4 @@
+import { consumeBudget, initializeBudgets } from "./request-budget.js";
 import express from "express";
 import { DatabaseSync } from "node:sqlite";
 import { createHash } from "node:crypto";
@@ -33,6 +34,7 @@ export function createDb(file = resolve(root, "data", "nestly.db")) {
     db.exec(
       "CREATE UNIQUE INDEX IF NOT EXISTS inquiries_request_key ON inquiries(request_key); CREATE INDEX IF NOT EXISTS listings_price_id ON listings(price,id); COMMIT",
     );
+    initializeBudgets(db);
     return db;
   } catch (error) {
     if (db.isTransaction) db.exec("ROLLBACK");
@@ -58,8 +60,6 @@ export function createApp(db = createDb(), { now = Date.now } = {}) {
     next();
   });
   app.use(express.json({ limit: "16kb" }));
-  let attempts = 0,
-    reset = 0;
   app.param("id", (req, res, next, id) =>
     /^[1-9]\d*$/.test(id) && Number.isSafeInteger(Number(id))
       ? next()
@@ -111,19 +111,8 @@ export function createApp(db = createDb(), { now = Date.now } = {}) {
   });
   app.post("/api/inquiries", (req, res) => {
     const time = now();
-    if (time >= reset) {
-      attempts = 0;
-      reset = time + 60000;
-    }
-    // ponytail: one bounded local-process budget; public hosting needs shared abuse controls.
-    if (attempts++ >= 20)
-      return res
-        .set(
-          "Retry-After",
-          String(Math.max(1, Math.ceil((reset - time) / 1000))),
-        )
-        .status(429)
-        .json({ message: "Слишком много заявок. Повторите позже" });
+    const budget = consumeBudget(db, 'submit', 20, time);
+    if (!budget.allowed) return res.set('Retry-After', String(budget.retryAfter)).status(429).json({ message: 'Слишком много запросов. Повторите позже' });
     const p = z
       .object({
         listingId: z.number().int().positive(),
