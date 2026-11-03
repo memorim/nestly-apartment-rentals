@@ -134,6 +134,7 @@ document.querySelector("#inquiry").onsubmit = async (e) => {
     name: d.get("name"),
     phone: d.get("phone"),
     message: d.get("message"),
+    website: d.get("website") || "",
   });
   if (lastInquiry?.body !== body)
     lastInquiry = { body, key: crypto.randomUUID() };

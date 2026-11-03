@@ -3,7 +3,7 @@ import {ownerAccess,publicOrigin} from "./owner-access.js";
 import { consumeBudget, initializeBudgets } from "./request-budget.js";
 import express from "express";
 import { DatabaseSync } from "node:sqlite";
-import { createHash } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -135,6 +135,7 @@ export function createApp(db = createDb(), { now = Date.now } = {}) {
   app.delete('/api/owner/occupancy/:id',ownerAccess(),(req,res)=>{db.prepare('DELETE FROM occupancy WHERE id=?').run(Number(req.params.id));res.status(204).end();});
   app.post("/api/inquiries", (req, res) => {
     const time = now();
+    if(req.body?.website!==undefined && req.body.website!=='')return res.status(400).json({message:'Проверьте поля формы'});
     const budget = consumeBudget(db, 'submit', 20, time);
     if (!budget.allowed) return res.set('Retry-After', String(budget.retryAfter)).status(429).json({ message: 'Слишком много запросов. Повторите позже' });
     const p = z
@@ -162,6 +163,12 @@ export function createApp(db = createDb(), { now = Date.now } = {}) {
     const hash = createHash("sha256")
       .update(JSON.stringify(p.data))
       .digest("hex");
+    if(hostedOrigin && !(key && db.prepare('SELECT id FROM inquiries WHERE request_key=?').get(key))) {
+      const contact=createHmac('sha256',process.env.APP_OWNER_TOKEN).update(p.data.phone.replace(/\D/g,'')).digest('hex');
+      db.prepare("DELETE FROM request_budgets WHERE key LIKE 'contact:%' AND reset_at<=?").run(time);
+      const contactBudget=consumeBudget(db,'contact:'+contact,5,time,3600000);
+      if(!contactBudget.allowed)return res.set('Retry-After',String(contactBudget.retryAfter)).status(429).json({message:'Слишком много заявок с этим контактом. Повторите позже'});
+    }
     const out = db
       .prepare(
         "INSERT INTO inquiries(listing_id,name,phone,message,created_at,request_key,request_hash) SELECT id,?,?,?,?,?,? FROM listings WHERE id=? AND available=1 ON CONFLICT(request_key) DO NOTHING",
