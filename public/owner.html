@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>Заявки и календарь · Nestly</title>
+    <link rel="stylesheet" href="owner.css" />
+  </head>
+  <body style="--accent: #596449">
+    <main>
+      <header>
+        <div>
+          <span>Nestly / Кабинет владельца</span>
+          <h1>Заявки и календарь</h1>
+        </div>
+        <a href="./">На сайт</a>
+      </header>
+      <section>
+        <form id="login">
+          <label for="owner-key">Ключ владельца</label>
+          <div class="row">
+            <input
+              id="owner-key"
+              type="password"
+              required
+              minlength="32"
+              maxlength="256"
+              autocomplete="off"
+            /><button>Войти</button>
+          </div>
+          <p class="muted">
+            Ключ хранится только в памяти этой вкладки до выхода или обновления
+            страницы.
+          </p>
+        </form>
+        <div class="actions">
+          <button id="logout" class="secondary" hidden>Выйти</button
+          ><button id="refresh" class="secondary">Обновить</button>
+        </div>
+        <p id="status" role="status" aria-live="polite"></p>
+      </section>
+      <div id="workspace" hidden>
+        <section>
+          <h2>Заявки</h2>
+          <div id="inquiries"></div>
+        </section>
+        <section>
+          <h2>Календарь занятости</h2>
+          <form id="occupancy" class="row">
+            <div class="field">
+              <label for="listing">Квартира</label
+              ><select id="listing"></select>
+            </div>
+            <div class="field">
+              <label for="start-date">Заезд</label
+              ><input id="start-date" type="date" required />
+            </div>
+            <div class="field">
+              <label for="end-date">Выезд</label
+              ><input id="end-date" type="date" required />
+            </div>
+            <button>Добавить занятый период</button>
+          </form>
+          <p class="muted">Дата выезда свободна для следующего заезда.</p>
+          <div id="calendar"></div>
+        </section>
+      </div>
+    </main>
+    <script src="owner.js" defer></script>
+  </body>
+</html>

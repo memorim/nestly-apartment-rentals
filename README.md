@@ -95,3 +95,8 @@ Leaflet отображает настоящую карту OpenStreetMap и ма
 APP_OWNER_TOKEN задаёт случайный секрет от 32 символов; Authorization: Bearer защищает GET /api/owner/inquiries, POST /api/owner/listings/:id/occupancy и DELETE /api/owner/occupancy/:id. Периоды startDate/endDate задаются как YYYY-MM-DD, дата выезда не включается. Пересечения отклоняются атомарно с 409. Публичный GET /api/listings/:id/availability раскрывает только занятость; календарь доступен под каталогом. Для публичного режима нужны APP_PUBLIC_ORIGIN (HTTPS) и TLS-прокси.
 
 Каждая новая заявка создаёт одно событие inquiry_events; повтор заявки не создаёт новое уведомление. Рабочий канал менеджера/CRM настраивается отдельно, контакты в события не копируются.
+
+
+### Кабинет владельца
+
+При серверном запуске откройте `/owner.html`: заявки и календарь. Вход по `APP_OWNER_TOKEN`; ключ не сохраняется в localStorage или URL и удаляется при выходе. На GitHub Pages кабинет не подключён к серверной базе.
