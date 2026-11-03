@@ -1,3 +1,4 @@
+import {ownerAccess,publicOrigin} from "./owner-access.js";
 import { consumeBudget, initializeBudgets } from "./request-budget.js";
 import express from "express";
 import { DatabaseSync } from "node:sqlite";
@@ -34,6 +35,9 @@ export function createDb(file = resolve(root, "data", "nestly.db")) {
     db.exec(
       "CREATE UNIQUE INDEX IF NOT EXISTS inquiries_request_key ON inquiries(request_key); CREATE INDEX IF NOT EXISTS listings_price_id ON listings(price,id); COMMIT",
     );
+    db.exec(`CREATE TABLE IF NOT EXISTS occupancy(id INTEGER PRIMARY KEY AUTOINCREMENT,listing_id INTEGER NOT NULL,start_date TEXT NOT NULL,end_date TEXT NOT NULL,CHECK(start_date<end_date));
+      CREATE INDEX IF NOT EXISTS occupancy_dates ON occupancy(listing_id,start_date,end_date);
+      CREATE TABLE IF NOT EXISTS inquiry_events(id INTEGER PRIMARY KEY AUTOINCREMENT,inquiry_id INTEGER NOT NULL UNIQUE,created_at TEXT NOT NULL,delivered_at TEXT,attempts INTEGER NOT NULL DEFAULT 0,next_attempt_at INTEGER NOT NULL DEFAULT 0,last_error TEXT);`);
     initializeBudgets(db);
     return db;
   } catch (error) {
@@ -44,14 +48,19 @@ export function createDb(file = resolve(root, "data", "nestly.db")) {
 }
 export function createApp(db = createDb(), { now = Date.now } = {}) {
   const app = express();
+  const hostedOrigin=publicOrigin();
+  const retentionDays=Number(process.env.CONTACT_RETENTION_DAYS || 90);
+  if(!Number.isInteger(retentionDays)||retentionDays<1||retentionDays>3650)throw new Error('Invalid contact retention');
+  let sweep=-Infinity;
+  app.use('/api',(_req,_res,next)=>{const time=now();if(time-sweep>=3600000){db.prepare("UPDATE inquiries SET name='[removed]',phone='',message='' WHERE created_at<? AND phone!=''").run(new Date(time-retentionDays*86400000).toISOString());sweep=time;}next();});
   app.use("/api", (req, res, next) => {
-    if (!["localhost", "127.0.0.1", "::1", "[::1]"].includes(req.hostname))
+    if (hostedOrigin ? req.get("host") !== hostedOrigin.host : !["localhost", "127.0.0.1", "::1", "[::1]"].includes(req.hostname))
       return res.status(403).json({ message: "Используйте локальный адрес" });
     if (
-      req.method === "POST" &&
+      !["GET","HEAD","OPTIONS"].includes(req.method) &&
       (req.get("sec-fetch-site") === "cross-site" ||
         (req.get("origin") &&
-          req.get("origin") !== `${req.protocol}://${req.get("host")}`))
+          req.get("origin") !== (hostedOrigin?.origin || `${req.protocol}://${req.get("host")}`)))
     )
       return res
         .status(403)
@@ -109,6 +118,17 @@ export function createApp(db = createDb(), { now = Date.now } = {}) {
       ? res.json({ ...row, features: row.features.split(",") })
       : res.status(404).json({ message: "Квартира не найдена" });
   });
+  const date=z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(v=>!Number.isNaN(Date.parse(v))&&new Date(v).toISOString().slice(0,10)===v);
+  app.get('/api/listings/:id/availability',(req,res)=>res.json(db.prepare('SELECT id,start_date,end_date FROM occupancy WHERE listing_id=? ORDER BY start_date').all(Number(req.params.id))));
+  app.get('/api/owner/inquiries',ownerAccess(),(_req,res)=>res.json(db.prepare('SELECT * FROM inquiries ORDER BY id DESC LIMIT 100').all()));
+  app.post('/api/owner/listings/:id/occupancy',ownerAccess(),(req,res)=>{
+    const p=z.object({startDate:date,endDate:date}).strict().refine(v=>v.startDate<v.endDate).safeParse(req.body);
+    if(!p.success)return res.status(400).json({message:'Проверьте даты'});
+    if(!db.prepare('SELECT id FROM listings WHERE id=?').get(Number(req.params.id)))return res.status(404).json({message:'Квартира не найдена'});
+    const out=db.prepare('INSERT INTO occupancy(listing_id,start_date,end_date) SELECT ?,?,? WHERE NOT EXISTS(SELECT 1 FROM occupancy WHERE listing_id=? AND start_date<? AND end_date>?)').run(Number(req.params.id),p.data.startDate,p.data.endDate,Number(req.params.id),p.data.endDate,p.data.startDate);
+    return out.changes?res.status(201).json({id:Number(out.lastInsertRowid)}):res.status(409).json({message:'Период уже занят'});
+  });
+  app.delete('/api/owner/occupancy/:id',ownerAccess(),(req,res)=>{db.prepare('DELETE FROM occupancy WHERE id=?').run(Number(req.params.id));res.status(204).end();});
   app.post("/api/inquiries", (req, res) => {
     const time = now();
     const budget = consumeBudget(db, 'submit', 20, time);
@@ -162,6 +182,7 @@ export function createApp(db = createDb(), { now = Date.now } = {}) {
         .json({ message: "Ключ операции уже использован с другими данными" });
     if (!out.changes && !replay)
       return res.status(404).json({ message: "Объект недоступен" });
+    if(out.changes) db.prepare('INSERT OR IGNORE INTO inquiry_events(inquiry_id,created_at) VALUES(?,?)').run(Number(out.lastInsertRowid),new Date(time).toISOString());
     res.status(out.changes ? 201 : 200).json({
       id: replay?.id ?? Number(out.lastInsertRowid),
       status: "received",
@@ -186,7 +207,7 @@ export function createApp(db = createDb(), { now = Date.now } = {}) {
 }
 if (process.env.NODE_ENV !== "test") {
   if (
-    process.env.HOST &&
+    !process.env.APP_PUBLIC_ORIGIN && process.env.HOST &&
     !["127.0.0.1", "localhost", "::1"].includes(process.env.HOST)
   )
     throw new Error("Nestly requires a loopback HOST");

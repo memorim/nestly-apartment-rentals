@@ -194,3 +194,7 @@ for (const form of document.querySelectorAll("form")) {
     }
   };
 }
+
+const availability=document.createElement('section');availability.style.cssText='padding:24px;max-width:1100px;margin:auto';availability.innerHTML='<h2>Календарь занятости</h2><label>Номер квартиры <input type="number" min="1" value="1"></label><button type="button">Показать занятость</button><ul></ul><p role="status"></p>';
+document.querySelector('main').append(availability);
+availability.querySelector('button').onclick=async()=>{const list=availability.querySelector('ul'),status=availability.querySelector('p');list.replaceChildren();try{const response=await fetch('/api/listings/'+encodeURIComponent(availability.querySelector('input').value)+'/availability');if(!response.ok)throw new Error();const rows=await response.json();for(const r of rows){const li=document.createElement('li');li.textContent=`Занято с ${r.start_date} до ${r.end_date} (дата выезда)`;list.append(li);}status.textContent=rows.length?'':'Занятых периодов нет. Доступность подтвердит менеджер.';}catch{status.textContent='Не удалось загрузить календарь.';}};
