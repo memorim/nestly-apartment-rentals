@@ -1,3 +1,4 @@
+import {initializeNotifications,retryNotification} from './notifications.js';
 import {ownerAccess,publicOrigin} from "./owner-access.js";
 import { consumeBudget, initializeBudgets } from "./request-budget.js";
 import express from "express";
@@ -38,6 +39,7 @@ export function createDb(file = resolve(root, "data", "nestly.db")) {
     db.exec(`CREATE TABLE IF NOT EXISTS occupancy(id INTEGER PRIMARY KEY AUTOINCREMENT,listing_id INTEGER NOT NULL,start_date TEXT NOT NULL,end_date TEXT NOT NULL,CHECK(start_date<end_date));
       CREATE INDEX IF NOT EXISTS occupancy_dates ON occupancy(listing_id,start_date,end_date);
       CREATE TABLE IF NOT EXISTS inquiry_events(id INTEGER PRIMARY KEY AUTOINCREMENT,inquiry_id INTEGER NOT NULL UNIQUE,created_at TEXT NOT NULL,delivered_at TEXT,attempts INTEGER NOT NULL DEFAULT 0,next_attempt_at INTEGER NOT NULL DEFAULT 0,last_error TEXT);`);
+    initializeNotifications(db);
     initializeBudgets(db);
     return db;
   } catch (error) {
@@ -121,6 +123,8 @@ export function createApp(db = createDb(), { now = Date.now } = {}) {
   const date=z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(v=>!Number.isNaN(Date.parse(v))&&new Date(v).toISOString().slice(0,10)===v);
   app.get('/api/listings/:id/availability',(req,res)=>res.json(db.prepare('SELECT id,start_date,end_date FROM occupancy WHERE listing_id=? ORDER BY start_date').all(Number(req.params.id))));
   app.get('/api/owner/inquiries',ownerAccess(),(_req,res)=>res.json(db.prepare('SELECT * FROM inquiries ORDER BY id DESC LIMIT 100').all()));
+  app.get('/api/owner/notifications',ownerAccess(),(_req,res)=>res.json(db.prepare('SELECT id,inquiry_id,attempts,delivered_at,next_attempt_at,last_error FROM inquiry_events ORDER BY id DESC LIMIT 100').all()));
+  app.post('/api/owner/notifications/:id/retry',ownerAccess(),(req,res)=>res.status(retryNotification(db,Number(req.params.id),now())?200:409).json({message:'Повтор разрешён только после пяти неудачных попыток и завершения текущей доставки'}));
   app.post('/api/owner/listings/:id/occupancy',ownerAccess(),(req,res)=>{
     const p=z.object({startDate:date,endDate:date}).strict().refine(v=>v.startDate<v.endDate).safeParse(req.body);
     if(!p.success)return res.status(400).json({message:'Проверьте даты'});
@@ -182,7 +186,6 @@ export function createApp(db = createDb(), { now = Date.now } = {}) {
         .json({ message: "Ключ операции уже использован с другими данными" });
     if (!out.changes && !replay)
       return res.status(404).json({ message: "Объект недоступен" });
-    if(out.changes) db.prepare('INSERT OR IGNORE INTO inquiry_events(inquiry_id,created_at) VALUES(?,?)').run(Number(out.lastInsertRowid),new Date(time).toISOString());
     res.status(out.changes ? 201 : 200).json({
       id: replay?.id ?? Number(out.lastInsertRowid),
       status: "received",

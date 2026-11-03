@@ -115,6 +115,30 @@ async function calendar() {
 }
 async function load() {
   const inquiries = await api("/api/owner/inquiries");
+  const notifications = await api("/api/owner/notifications");
+  table(
+    $("notifications"),
+    ["Событие", "Заявка", "Попытки", "Статус", "Действие"],
+    notifications.map((n) => [
+      n.id,
+      n.inquiry_id,
+      n.attempts,
+      n.delivered_at
+        ? "Доставлено"
+        : n.attempts >= 5
+          ? "Требуется повтор"
+          : "В очереди",
+      !n.delivered_at && n.attempts >= 5
+        ? action("Повторить доставку", async () => {
+            await api("/api/owner/notifications/" + n.id + "/retry", {
+              method: "POST",
+            });
+            await load();
+            message("Событие возвращено в очередь.");
+          })
+        : "—",
+    ]),
+  );
   const listings = await api("/api/listings");
   table(
     $("inquiries"),
