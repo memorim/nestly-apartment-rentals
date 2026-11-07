@@ -6,7 +6,7 @@ const { createDb } = await import("./server.js");
 const config = notificationConfig();
 if (!config)
   throw new Error(
-    "Configure INQUIRY_WEBHOOK_URL and INQUIRY_WEBHOOK_SECRET first",
+    "Configure NTFY_TOPIC or INQUIRY_WEBHOOK_URL and INQUIRY_WEBHOOK_SECRET first",
   );
 const db = createDb();
 let stopping = false;
