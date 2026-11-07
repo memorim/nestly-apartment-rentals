@@ -131,3 +131,24 @@ test("expired worker leases recover and configuration fails closed", async () =>
     db.close();
   }
 });
+
+test("ntfy uses the durable queue and excludes inquiry contact fields", async () => {
+  const db = createDb(":memory:");
+  const ntfy = notificationConfig({ NTFY_TOPIC: "a".repeat(48) });
+  try {
+    insert(db);
+    await deliverNext(db, { config: ntfy, send: async (url, options) => {
+      assert.equal(url, "https://ntfy.sh/");
+      const body = JSON.parse(options.body);
+      assert.equal(body.topic, "a".repeat(48));
+      assert.equal(body.title, "Nestly");
+      assert.ok(!options.body.includes("Private"));
+      assert.ok(!options.body.includes("79990001122"));
+      assert.equal(options.redirect, "error");
+      return new Response(null, {status: 200});
+    }});
+    assert.ok(db.prepare("SELECT delivered_at FROM inquiry_events").get().delivered_at);
+    assert.throws(() => notificationConfig({NTFY_TOPIC: "short"}));
+    assert.throws(() => notificationConfig({NTFY_TOPIC: "a".repeat(48), INQUIRY_WEBHOOK_URL: config.url}));
+  } finally { db.close(); }
+});

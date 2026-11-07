@@ -18,6 +18,11 @@ export function initializeNotifications(db) {
 }
 
 export function notificationConfig(env = process.env) {
+  if (env.NTFY_TOPIC) {
+    if (env.INQUIRY_WEBHOOK_URL) throw new Error("Choose ntfy or the inquiry webhook");
+    if (!/^[A-Za-z0-9_-]{32,128}$/.test(env.NTFY_TOPIC)) throw new Error("Use a random ntfy topic of 32–128 safe characters");
+    return { kind: "ntfy", url: "https://ntfy.sh/", topic: env.NTFY_TOPIC };
+  }
   if (!env.INQUIRY_WEBHOOK_URL) return null;
   const url = new URL(env.INQUIRY_WEBHOOK_URL);
   if (url.protocol !== "https:" || url.username || url.password || url.hash)
@@ -67,9 +72,12 @@ export async function deliverNext(
     createdAt: event.created_at,
   });
   const timestamp = String(time);
-  const signature = createHmac("sha256", config.secret)
-    .update(timestamp + "." + payload)
-    .digest("hex");
+  const ntfy = config.kind === "ntfy";
+  const body = ntfy ? JSON.stringify({ topic: config.topic, title: "Nestly", message: "New inquiry #" + event.inquiry_id }) : payload;
+  const signedHeaders = ntfy ? {} : {
+    "X-Nestly-Timestamp": timestamp,
+    "X-Nestly-Signature": createHmac("sha256", config.secret).update(timestamp + "." + payload).digest("hex"),
+  };
   try {
     const response = await send(config.url, {
       method: "POST",
@@ -78,10 +86,9 @@ export async function deliverNext(
       headers: {
         "Content-Type": "application/json",
         "Idempotency-Key": "nestly-inquiry-" + event.id,
-        "X-Nestly-Timestamp": timestamp,
-        "X-Nestly-Signature": signature,
+        ...signedHeaders,
       },
-      body: payload,
+      body,
     });
     await response.body?.cancel();
     if (!response.ok) throw new Error("delivery_failed");
