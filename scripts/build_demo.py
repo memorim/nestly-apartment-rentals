@@ -24,7 +24,6 @@ if app.exists():
  text=app.read_text(encoding='utf8')
  text=text.replace('Run check','О сетевой проверке').replace(' is now being watched.',' добавлен в текущую сессию; сетевые проверки доступны при запуске сервера.')
  text=text.replace('Капсула зашифрована и отправлена на орбиту.','Капсула зашифрована в памяти вкладки. Сохранится до перезагрузки страницы.')
- text=text.replace('Демо-заявка сохранена. Уведомления менеджеру не отправляются.','Заявка сохранена в текущей вкладке. Контакты не отправлены менеджеру.')
  text=text.replace('Демо-заказ №','Заказ в текущей вкладке №')
  app.write_text(text,encoding='utf8')
 print('Built isolated browser demo:', root.name)

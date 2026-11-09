@@ -148,7 +148,9 @@ document.querySelector("#inquiry").onsubmit = async (e) => {
   });
   const out = await r.json();
   document.querySelector(".success").textContent = r.ok
-    ? "Демо-заявка сохранена. Уведомления менеджеру не отправляются."
+    ? out.status === "saved_locally"
+      ? "Заявка сохранена в текущей вкладке. Контакты не отправлены менеджеру."
+      : "Заявка сохранена. Менеджер увидит её в кабинете владельца."
     : out.message;
   if (r.ok) {
     e.target.reset();
