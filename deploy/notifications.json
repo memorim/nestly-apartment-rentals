@@ -1,0 +1,13 @@
+{
+  "slug": "notifications",
+  "runtime": "nodejs24",
+  "required_environment": ["NTFY_TOPIC"],
+  "trigger": {
+    "type": "schedule",
+    "function_slug": "notifications",
+    "name": "nestly-notifications",
+    "function_path": "/cron",
+    "schedule": { "cron": "*/15 * * * *" },
+    "enabled": true
+  }
+}
