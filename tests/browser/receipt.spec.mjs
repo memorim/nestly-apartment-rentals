@@ -13,6 +13,11 @@ for (const [status, confirmation] of [
     await page.goto('/');
     await expect(page.locator('.listing')).toHaveCount(6);
     if (process.env.UPDATE_UI_SCREENSHOTS && status === 'received') {
+      await page.locator('img').evaluateAll(images => Promise.all(images.map(image => {
+        image.loading = 'eager';
+        return image.decode();
+      })));
+      await page.evaluate(() => document.fonts.ready);
       await page.screenshot({ path: `screenshots/${testInfo.project.name}.png`, fullPage: true });
     }
     await page.locator('[data-view]').first().click();
