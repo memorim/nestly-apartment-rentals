@@ -28,6 +28,12 @@ jobs:
       - run: node scripts/build-notifier.mjs
       - run: pnpm exec playwright install --with-deps --only-shell chromium
       - run: pnpm test:e2e
+        env:
+          UPDATE_UI_SCREENSHOTS: '1'
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ui-screenshots
+          path: screenshots/
       - run: node --check public/app.js
       - run: node --check server.js
 
