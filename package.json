@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build:notifications": "node scripts/build-notifier.mjs",
     "dev": "node --watch server.js",
     "start": "node server.js",
     "test": "node --test tests/*.test.js",

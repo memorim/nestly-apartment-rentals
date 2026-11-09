@@ -25,6 +25,7 @@ jobs:
       - run: pnpm test
       - run: pnpm test:contract
       - run: pnpm test:upgrade
+      - run: node scripts/build-notifier.mjs
       - run: pnpm exec playwright install --with-deps --only-shell chromium
       - run: pnpm test:e2e
       - run: node --check public/app.js

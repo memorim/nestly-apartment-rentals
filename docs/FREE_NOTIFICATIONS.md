@@ -18,3 +18,9 @@ check the owner queue even if no notification arrives. Creating this adapter
 does not deploy the server or configure the recipient environment automatically.
 
 Provider documentation: https://docs.ntfy.sh/publish/ and https://docs.ntfy.sh/privacy/.
+
+For a free scheduled worker that runs while Render sleeps, see
+[PostgreSQL and Neon Functions setup](FREE_POSTGRES.md). The one-shot CLI
+equivalent is `node notification-worker.js --once`; missing delivery settings
+fail before events can be acknowledged. Do not run the continuous polling mode
+against Neon Free without accounting for its compute quota.
