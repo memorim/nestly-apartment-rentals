@@ -4,9 +4,6 @@
 
 [Открыть проект](https://memorim.github.io/nestly-apartment-rentals/)
 
-![Компьютерная версия](docs/desktop.png)
-
-<img src="docs/mobile.png" width="320" alt="Мобильная версия">
 
 ## Возможности
 
