@@ -142,7 +142,7 @@ async function load() {
   const listings = await api("/api/listings");
   table(
     $("inquiries"),
-    ["Заявка", "Квартира", "Имя", "Телефон", "Сообщение", "Дата"],
+    ["Заявка", "Квартира", "Имя", "Телефон", "Сообщение", "Дата", "Контакты"],
     inquiries.map((i) => [
       i.id,
       i.listing_id,
@@ -150,8 +150,26 @@ async function load() {
       i.phone,
       i.message,
       i.created_at,
+      i.phone ? action("Обезличить", async () => {
+        if (!confirm("Удалить имя, телефон и сообщение из этой заявки?")) return;
+        await api("/api/owner/inquiries/" + i.id + "/contacts", { method: "DELETE" });
+        await load();
+        message("Контакты удалены.");
+      }) : "—",
     ]),
   );
+  $("inquiries").prepend(action("Скачать CSV", async () => {
+    const response = await fetch("/api/owner/inquiries.csv", {
+      headers: { Authorization: "Bearer " + ownerKey },
+    });
+    if (!response.ok) throw new Error("Не удалось выгрузить заявки");
+    const url = URL.createObjectURL(await response.blob());
+    const link = el("a");
+    link.href = url;
+    link.download = "nestly-inquiries.csv";
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }));
   const selected = $("listing").value;
   $("listing").replaceChildren(
     ...listings.map((l) => {

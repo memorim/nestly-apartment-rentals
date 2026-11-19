@@ -1,3 +1,4 @@
+import { purgeContacts } from './contacts.js';
 import { parseTriggerDelivery } from '@neon/functions/triggers';
 import { createPostgresDb } from './postgres.js';
 import { notificationConfig, runNotificationBatch } from './notifications.js';
@@ -46,6 +47,7 @@ export function createScheduledHandler({
         const config = configuration();
         if (!config) throw new Error('Configure external delivery');
         const db = await open();
+        await purgeContacts(db, now());
         const summary = await runNotificationBatch(db, { config, send, now });
         console.log(
           JSON.stringify({ event: 'notification_batch', ...summary }),
