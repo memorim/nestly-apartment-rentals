@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Кабинет арендатора · Nestly</title>
+  <link rel="stylesheet" href="owner.css">
+  <link rel="stylesheet" href="account.css">
+  <script src="account.js" defer></script>
+</head>
+<body>
+  <main>
+    <header><h1>Кабинет арендатора</h1><a href="./">К квартирам</a></header>
+    <p id="status" role="status"></p>
+    <section id="credentials" hidden>
+      <form class="row">
+        <label class="field">Email <input type="email" name="email" autocomplete="username" required maxlength="254"></label>
+        <label class="field">Пароль <input type="password" name="password" autocomplete="current-password" required minlength="10" maxlength="128"></label>
+        <div class="actions">
+          <button type="submit" value="login">Войти</button>
+          <button type="submit" value="register" class="secondary">Создать аккаунт</button>
+        </div>
+      </form>
+    </section>
+    <section id="profile" hidden>
+      <div class="row"><p id="account-email" class="field"></p><button type="button" id="logout" class="secondary">Выйти</button></div>
+      <h2>Избранное</h2>
+      <ul id="favorites"></ul>
+    </section>
+  </main>
+</body>
+</html>

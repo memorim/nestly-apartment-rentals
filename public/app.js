@@ -41,6 +41,15 @@ try {
   /* Keep session controls usable when saved data or storage is unavailable. */
 }
 
+let signedIn = false;
+const favoritesReady = globalThis.PORTFOLIO_DEMO ? Promise.resolve() :
+  fetch('/api/account/favorites').then(async response => {
+    if (!response.ok) return;
+    saved = new Set(await response.json());
+    signedIn = true;
+    document.querySelector('#saved-count').textContent = saved.size;
+  }).catch(() => {});
+
 const locationMap = L.map("location-map", { scrollWheelZoom: false }).setView([55.756, 37.623], 12);
 const mapCaption = document.querySelector(".map-caption");
 const tiles = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -82,6 +91,8 @@ function updateMap() {
 }
 const money = (v) => `${new Intl.NumberFormat("ru-RU").format(v)} ₽`;
 async function loadData(signal) {
+  await favoritesReady;
+  signal.throwIfAborted();
   const qs = new URLSearchParams({
     district: district.value,
     rooms: rooms.value,
@@ -103,13 +114,27 @@ async function loadData(signal) {
   updateMap();
   document.querySelectorAll("[data-save]").forEach(
     (b) =>
-      (b.onclick = () => {
+      (b.onclick = async () => {
         const id = Number(b.dataset.save);
-        saved.has(id) ? saved.delete(id) : saved.add(id);
-        try {
-          localStorage.setItem("nestly-saved", JSON.stringify([...saved]));
-        } catch {
-          /* Favorites remain available for this session. */
+        const remove = saved.has(id);
+        if (signedIn) {
+          b.disabled = true;
+          try {
+            const response = await fetch('/api/account/favorites/' + id, {
+              method: remove ? 'DELETE' : 'PUT',
+            });
+            if (!response.ok) throw new Error('Favorites update failed');
+          } catch {
+            loadFeedback.hidden = false;
+            loadFeedback.textContent = 'Не удалось обновить избранное. Повторите действие.';
+            b.disabled = false;
+            return;
+          }
+        }
+        if (remove) saved.delete(id);
+        else saved.add(id);
+        if (!signedIn) {
+          try { localStorage.setItem('nestly-saved', JSON.stringify([...saved])); } catch {}
         }
         document.querySelector("#saved-count").textContent = saved.size;
         load();
@@ -158,7 +183,8 @@ document.querySelector("#inquiry").onsubmit = async (e) => {
   }
 };
 document.querySelector("#saved-count").textContent = saved.size;
-load();
+const requestedListing = Number(new URLSearchParams(location.search).get('listing'));
+load().then(() => { if (requestedListing) showInquiry(requestedListing); });
 
 document.querySelector(".saved").onclick = () => {
   onlySaved = !onlySaved;

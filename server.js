@@ -1,3 +1,5 @@
+import { tenantSchema } from './tenant-schema.js';
+import { tenantRoutes } from './tenants.js';
 import { dataDirectory } from './storage.js';
 import { createPostgresDb, writeTransaction } from './postgres.js';
 import { initializeNotifications, retryNotification } from './notifications.js';
@@ -42,6 +44,7 @@ export function createDb(file = resolve(dataDirectory(), 'nestly.db')) {
     db.exec(`CREATE TABLE IF NOT EXISTS occupancy(id INTEGER PRIMARY KEY AUTOINCREMENT,listing_id INTEGER NOT NULL,start_date TEXT NOT NULL,end_date TEXT NOT NULL,CHECK(start_date<end_date));
       CREATE INDEX IF NOT EXISTS occupancy_dates ON occupancy(listing_id,start_date,end_date);
       CREATE TABLE IF NOT EXISTS inquiry_events(id INTEGER PRIMARY KEY AUTOINCREMENT,inquiry_id INTEGER NOT NULL UNIQUE,created_at TEXT NOT NULL,delivered_at TEXT,attempts INTEGER NOT NULL DEFAULT 0,next_attempt_at INTEGER NOT NULL DEFAULT 0,last_error TEXT);`);
+    db.exec(tenantSchema);
     initializeNotifications(db);
     initializeBudgets(db);
     return db;
@@ -107,6 +110,7 @@ export function createApp(db = createDb(), { now = Date.now } = {}) {
       ? next()
       : res.status(400).json({ message: 'Некорректный идентификатор' }),
   );
+  tenantRoutes(app, db, { now, secure: Boolean(hostedOrigin) });
   app.get('/api/health', async (_req, res) => {
     await db.prepare('SELECT 1').get();
     res.json({ status: 'ok' });

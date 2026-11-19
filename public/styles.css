@@ -59,3 +59,9 @@ body>header nav a{color:inherit;text-decoration:none}@media(min-width: 801px) an
 }
 
 .spam-trap{position:absolute!important;left:-10000px!important;width:1px;height:1px;overflow:hidden;}
+
+body>header .header-actions{display:flex;align-items:center;justify-self:end;gap:.65rem}
+body>header .header-actions a{font-size:.8rem;color:inherit}
+@media(max-width:800px), (min-width:801px) and (max-width:880px){
+  body>header .header-actions a{font-size:.65rem}
+}
