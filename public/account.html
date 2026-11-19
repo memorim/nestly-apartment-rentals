@@ -26,6 +26,14 @@
       <div class="row"><p id="account-email" class="field"></p><button type="button" id="logout" class="secondary">Выйти</button></div>
       <h2>Избранное</h2>
       <ul id="favorites"></ul>
+      <h2>Бронирование на первый месяц</h2>
+      <p id="checkout-status"></p>
+      <form id="booking-form" class="row" hidden>
+        <label class="field">Квартира <select name="listingId" required></select></label>
+        <label class="field">Дата заезда <input type="date" name="startDate" required></label>
+        <button type="submit">Перейти к тестовой оплате</button>
+      </form>
+      <ul id="bookings"></ul>
     </section>
   </main>
 </body>

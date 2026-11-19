@@ -105,7 +105,7 @@ async function calendar() {
     rows.map((r) => [
       r.start_date,
       r.end_date,
-      action("Освободить период", async () => {
+      r.id === null ? "Бронирование арендатора" : action("Освободить период", async () => {
         await api("/api/owner/occupancy/" + r.id, { method: "DELETE" });
         await calendar();
         message("Период освобождён.");

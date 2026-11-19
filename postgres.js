@@ -1,3 +1,4 @@
+import { bookingSchema } from './booking-schema.js';
 import { tenantSchema } from './tenant-schema.js';
 import pg from 'pg';
 import { AsyncLocalStorage } from 'node:async_hooks';
@@ -51,7 +52,7 @@ export function postgresSql(source, values = []) {
   const bound = [];
   let positional = 0;
   const text = source.replace(
-    /'(?:''|[^'])*'|"(?:""|[^"])*"|\$[A-Za-z_]\w*|\?|\b(?:listings|inquiries|occupancy|inquiry_events|request_budgets|tenant_accounts|tenant_sessions|tenant_favorites)\b/g,
+    /'(?:''|[^'])*'|"(?:""|[^"])*"|\$[A-Za-z_]\w*|\?|\b(?:listings|inquiries|occupancy|inquiry_events|request_budgets|tenant_accounts|tenant_sessions|tenant_favorites|tenant_bookings)\b/g,
     (token) => {
       if (token[0] === "'" || token[0] === '"') return token;
       if (token === '?' || token[0] === '$') {
@@ -194,6 +195,7 @@ export async function createPostgresDb(
         if (found.rows[0].checksum !== checksum)
           throw new Error('Applied migration checksum mismatch');
         await client.query(tenantSchema);
+        await client.query(bookingSchema);
         return;
       }
       await client.query(schema);
@@ -252,6 +254,7 @@ export async function createPostgresDb(
       }
       await client.query(notifications);
       await client.query(tenantSchema);
+      await client.query(bookingSchema);
       await client.query('INSERT INTO schema_migrations VALUES(1,$1)', [
         checksum,
       ]);

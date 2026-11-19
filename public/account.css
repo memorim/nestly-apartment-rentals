@@ -1,4 +1,4 @@
 :root { --accent: #5b4b3c; }
-#credentials[hidden], #profile[hidden] { display: none; }
+#credentials[hidden], #profile[hidden], #booking-form[hidden] { display: none; }
 #account-email { overflow-wrap: anywhere; }
 #favorites a { color: inherit; }

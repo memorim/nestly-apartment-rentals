@@ -1,3 +1,6 @@
+import { bookingSchema } from './booking-schema.js';
+import { bookingRoutes, overlappingBooking } from './bookings.js';
+import { testPayments } from './yookassa-test.js';
 import { tenantSchema } from './tenant-schema.js';
 import { tenantRoutes } from './tenants.js';
 import { dataDirectory } from './storage.js';
@@ -45,6 +48,7 @@ export function createDb(file = resolve(dataDirectory(), 'nestly.db')) {
       CREATE INDEX IF NOT EXISTS occupancy_dates ON occupancy(listing_id,start_date,end_date);
       CREATE TABLE IF NOT EXISTS inquiry_events(id INTEGER PRIMARY KEY AUTOINCREMENT,inquiry_id INTEGER NOT NULL UNIQUE,created_at TEXT NOT NULL,delivered_at TEXT,attempts INTEGER NOT NULL DEFAULT 0,next_attempt_at INTEGER NOT NULL DEFAULT 0,last_error TEXT);`);
     db.exec(tenantSchema);
+    db.exec(bookingSchema);
     initializeNotifications(db);
     initializeBudgets(db);
     return db;
@@ -61,7 +65,7 @@ export async function openDatabase() {
       })
     : createDb();
 }
-export function createApp(db = createDb(), { now = Date.now } = {}) {
+export function createApp(db = createDb(), { now = Date.now, paymentProvider } = {}) {
   const app = express();
   const hostedOrigin = publicOrigin();
   const retentionDays = Number(process.env.CONTACT_RETENTION_DAYS || 90);
@@ -111,6 +115,13 @@ export function createApp(db = createDb(), { now = Date.now } = {}) {
       : res.status(400).json({ message: 'Некорректный идентификатор' }),
   );
   tenantRoutes(app, db, { now, secure: Boolean(hostedOrigin) });
+  bookingRoutes(app, db, {
+    now, provider: paymentProvider ?? testPayments({
+      shopId: process.env.YOO_KASSA_SHOP_ID,
+      testKey: process.env.YOO_KASSA_TEST_KEY,
+      origin: hostedOrigin?.origin,
+    }),
+  });
   app.get('/api/health', async (_req, res) => {
     await db.prepare('SELECT 1').get();
     res.json({ status: 'ok' });
@@ -169,13 +180,12 @@ export function createApp(db = createDb(), { now = Date.now } = {}) {
         new Date(v).toISOString().slice(0, 10) === v,
     );
   app.get('/api/listings/:id/availability', async (req, res) =>
-    res.json(
-      await db
-        .prepare(
-          'SELECT id,start_date,end_date FROM occupancy WHERE listing_id=? ORDER BY start_date',
-        )
-        .all(Number(req.params.id)),
-    ),
+    res.json(await db.prepare(
+      `SELECT id,start_date,end_date FROM occupancy WHERE listing_id=?
+       UNION ALL SELECT NULL AS id,start_date,end_date FROM tenant_bookings WHERE listing_id=?
+       AND (status IN ('capturing','confirmed') OR (status='pending' AND expires_at>?))
+       ORDER BY start_date`,
+    ).all(Number(req.params.id), Number(req.params.id), now())),
   );
   app.get('/api/owner/inquiries', ownerAccess(), async (_req, res) =>
     res.json(
@@ -225,9 +235,10 @@ export function createApp(db = createDb(), { now = Date.now } = {}) {
           .get(Number(req.params.id)))
       )
         return res.status(404).json({ message: 'Квартира не найдена' });
-      const out = await writeTransaction(db, () =>
-        db
-          .prepare(
+      const out = await writeTransaction(db, async () => {
+        if (await overlappingBooking(db, Number(req.params.id), p.data.startDate, p.data.endDate, now()))
+          return { changes: 0 };
+        return db.prepare(
             'INSERT INTO occupancy(listing_id,start_date,end_date) SELECT ?,?,? WHERE NOT EXISTS(SELECT 1 FROM occupancy WHERE listing_id=? AND start_date<? AND end_date>?)',
           )
           .run(
@@ -237,8 +248,8 @@ export function createApp(db = createDb(), { now = Date.now } = {}) {
             Number(req.params.id),
             p.data.endDate,
             p.data.startDate,
-          ),
-      );
+          );
+      });
       return out.changes
         ? res.status(201).json({ id: Number(out.lastInsertRowid) })
         : res.status(409).json({ message: 'Период уже занят' });
