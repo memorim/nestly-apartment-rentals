@@ -1,3 +1,9 @@
+import { clearContact, contactsCsv, contactRetentionDays, purgeContacts } from './contacts.js';
+import { bookingSchema } from './booking-schema.js';
+import { bookingRoutes, overlappingBooking } from './bookings.js';
+import { testPayments } from './yookassa-test.js';
+import { tenantSchema } from './tenant-schema.js';
+import { tenantRoutes } from './tenants.js';
 import { dataDirectory } from './storage.js';
 import { createPostgresDb, writeTransaction } from './postgres.js';
 import { initializeNotifications, retryNotification } from './notifications.js';
@@ -11,6 +17,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 const root = dirname(fileURLToPath(import.meta.url));
+const unkeyedReplayWindow = 10 * 60 * 1000;
 export function createDb(file = resolve(dataDirectory(), 'nestly.db')) {
   if (file !== ':memory:') mkdirSync(dirname(file), { recursive: true });
   const db = new DatabaseSync(file);
@@ -41,6 +48,8 @@ export function createDb(file = resolve(dataDirectory(), 'nestly.db')) {
     db.exec(`CREATE TABLE IF NOT EXISTS occupancy(id INTEGER PRIMARY KEY AUTOINCREMENT,listing_id INTEGER NOT NULL,start_date TEXT NOT NULL,end_date TEXT NOT NULL,CHECK(start_date<end_date));
       CREATE INDEX IF NOT EXISTS occupancy_dates ON occupancy(listing_id,start_date,end_date);
       CREATE TABLE IF NOT EXISTS inquiry_events(id INTEGER PRIMARY KEY AUTOINCREMENT,inquiry_id INTEGER NOT NULL UNIQUE,created_at TEXT NOT NULL,delivered_at TEXT,attempts INTEGER NOT NULL DEFAULT 0,next_attempt_at INTEGER NOT NULL DEFAULT 0,last_error TEXT);`);
+    db.exec(tenantSchema);
+    db.exec(bookingSchema);
     initializeNotifications(db);
     initializeBudgets(db);
     return db;
@@ -57,16 +66,10 @@ export async function openDatabase() {
       })
     : createDb();
 }
-export function createApp(db = createDb(), { now = Date.now } = {}) {
+export function createApp(db = createDb(), { now = Date.now, paymentProvider } = {}) {
   const app = express();
   const hostedOrigin = publicOrigin();
-  const retentionDays = Number(process.env.CONTACT_RETENTION_DAYS || 90);
-  if (
-    !Number.isInteger(retentionDays) ||
-    retentionDays < 1 ||
-    retentionDays > 3650
-  )
-    throw new Error('Invalid contact retention');
+  const retentionDays = contactRetentionDays();
   app.use('/api', (req, res, next) => {
     if (
       hostedOrigin
@@ -90,12 +93,8 @@ export function createApp(db = createDb(), { now = Date.now } = {}) {
   let sweep = -Infinity;
   app.use('/api', async (_req, _res, next) => {
     const time = now();
-    if (time - sweep >= 3600000) {
-      await db
-        .prepare(
-          "UPDATE inquiries SET name='[removed]',phone='',message='' WHERE created_at<? AND phone!=''",
-        )
-        .run(new Date(time - retentionDays * 86400000).toISOString());
+    if (retentionDays && time - sweep >= 3600000) {
+      await purgeContacts(db, time, retentionDays);
       sweep = time;
     }
     next();
@@ -106,6 +105,14 @@ export function createApp(db = createDb(), { now = Date.now } = {}) {
       ? next()
       : res.status(400).json({ message: 'Некорректный идентификатор' }),
   );
+  tenantRoutes(app, db, { now, secure: Boolean(hostedOrigin) });
+  bookingRoutes(app, db, {
+    now, provider: paymentProvider ?? testPayments({
+      shopId: process.env.YOO_KASSA_SHOP_ID,
+      testKey: process.env.YOO_KASSA_TEST_KEY,
+      origin: hostedOrigin?.origin,
+    }),
+  });
   app.get('/api/health', async (_req, res) => {
     await db.prepare('SELECT 1').get();
     res.json({ status: 'ok' });
@@ -164,13 +171,12 @@ export function createApp(db = createDb(), { now = Date.now } = {}) {
         new Date(v).toISOString().slice(0, 10) === v,
     );
   app.get('/api/listings/:id/availability', async (req, res) =>
-    res.json(
-      await db
-        .prepare(
-          'SELECT id,start_date,end_date FROM occupancy WHERE listing_id=? ORDER BY start_date',
-        )
-        .all(Number(req.params.id)),
-    ),
+    res.json(await db.prepare(
+      `SELECT id,start_date,end_date FROM occupancy WHERE listing_id=?
+       UNION ALL SELECT NULL AS id,start_date,end_date FROM tenant_bookings WHERE listing_id=?
+       AND (status IN ('capturing','confirmed') OR (status='pending' AND expires_at>?))
+       ORDER BY start_date`,
+    ).all(Number(req.params.id), Number(req.params.id), now())),
   );
   app.get('/api/owner/inquiries', ownerAccess(), async (_req, res) =>
     res.json(
@@ -179,6 +185,13 @@ export function createApp(db = createDb(), { now = Date.now } = {}) {
         .all(),
     ),
   );
+  app.get('/api/owner/inquiries.csv', ownerAccess(), async (_req, res) => {
+    res.attachment('nestly-inquiries.csv').type('text/csv').send(await contactsCsv(db));
+  });
+  app.delete('/api/owner/inquiries/:id/contacts', ownerAccess(), async (req, res) => {
+    const result = await clearContact(db, Number(req.params.id));
+    res.status(result.changes ? 204 : 404).end();
+  });
   app.get('/api/owner/notifications', ownerAccess(), async (_req, res) =>
     res.json(
       await db
@@ -220,9 +233,10 @@ export function createApp(db = createDb(), { now = Date.now } = {}) {
           .get(Number(req.params.id)))
       )
         return res.status(404).json({ message: 'Квартира не найдена' });
-      const out = await writeTransaction(db, () =>
-        db
-          .prepare(
+      const out = await writeTransaction(db, async () => {
+        if (await overlappingBooking(db, Number(req.params.id), p.data.startDate, p.data.endDate, now()))
+          return { changes: 0 };
+        return db.prepare(
             'INSERT INTO occupancy(listing_id,start_date,end_date) SELECT ?,?,? WHERE NOT EXISTS(SELECT 1 FROM occupancy WHERE listing_id=? AND start_date<? AND end_date>?)',
           )
           .run(
@@ -232,8 +246,8 @@ export function createApp(db = createDb(), { now = Date.now } = {}) {
             Number(req.params.id),
             p.data.endDate,
             p.data.startDate,
-          ),
-      );
+          );
+      });
       return out.changes
         ? res.status(201).json({ id: Number(out.lastInsertRowid) })
         : res.status(409).json({ message: 'Период уже занят' });
@@ -281,6 +295,15 @@ export function createApp(db = createDb(), { now = Date.now } = {}) {
       .update(JSON.stringify(p.data))
       .digest('hex');
     const result = await writeTransaction(db, async () => {
+      if (key === null) {
+        const recent = await db
+          .prepare(
+            'SELECT id FROM inquiries WHERE request_key IS NULL AND request_hash=? AND created_at>=? ORDER BY id DESC LIMIT 1',
+          )
+          .get(hash, new Date(time - unkeyedReplayWindow).toISOString());
+        if (recent)
+          return { status: 200, body: { id: recent.id, status: 'received' } };
+      }
       if (
         hostedOrigin &&
         !(
@@ -383,11 +406,16 @@ if (process.env.NODE_ENV !== 'test') {
     process.env.HOST || '127.0.0.1',
     () => console.log('Nestly listening on configured host and port'),
   );
+  const cleanup = setInterval(async () => {
+    try { await purgeContacts(db, Date.now()); }
+    catch { console.error({ event: 'contact_cleanup_failed' }); }
+  }, 3600000).unref();
   let stopping = false;
   for (const signal of ['SIGINT', 'SIGTERM'])
     process.on(signal, async () => {
       if (stopping) return;
       stopping = true;
+      clearInterval(cleanup);
       await new Promise((resolve) => server.close(resolve));
       await db.close();
     });
