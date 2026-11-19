@@ -11,6 +11,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 const root = dirname(fileURLToPath(import.meta.url));
+const unkeyedReplayWindow = 10 * 60 * 1000;
 export function createDb(file = resolve(dataDirectory(), 'nestly.db')) {
   if (file !== ':memory:') mkdirSync(dirname(file), { recursive: true });
   const db = new DatabaseSync(file);
@@ -281,6 +282,15 @@ export function createApp(db = createDb(), { now = Date.now } = {}) {
       .update(JSON.stringify(p.data))
       .digest('hex');
     const result = await writeTransaction(db, async () => {
+      if (key === null) {
+        const recent = await db
+          .prepare(
+            'SELECT id FROM inquiries WHERE request_key IS NULL AND request_hash=? AND created_at>=? ORDER BY id DESC LIMIT 1',
+          )
+          .get(hash, new Date(time - unkeyedReplayWindow).toISOString());
+        if (recent)
+          return { status: 200, body: { id: recent.id, status: 'received' } };
+      }
       if (
         hostedOrigin &&
         !(

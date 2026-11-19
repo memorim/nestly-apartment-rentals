@@ -9,6 +9,25 @@ const payload = {
   phone: "+79990000000",
   message: "Evening",
 };
+
+test("repeated requests without a key reuse the same inquiry within ten minutes", async () => {
+  const db = createDb(":memory:");
+  let time = Date.now();
+  const a = createApp(db, { now: () => time });
+  const b = createApp(db, { now: () => time });
+  const submit = (app, body = payload) => request(app).post("/api/inquiries").send(body);
+  try {
+    const replies = await Promise.all([submit(a), submit(b)]);
+    assert.deepEqual(replies.map((response) => response.status).sort(), [200, 201]);
+    assert.equal(replies[0].body.id, replies[1].body.id);
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM inquiry_events").get().n, 1);
+    assert.equal((await submit(a, { ...payload, message: "Morning" })).status, 201);
+    time += 10 * 60 * 1000 + 1;
+    assert.equal((await submit(b)).status, 201);
+  } finally {
+    db.close();
+  }
+});
 test("catalog rejects invalid numeric filters", async () => {
   const db = createDb(":memory:");
   try {
